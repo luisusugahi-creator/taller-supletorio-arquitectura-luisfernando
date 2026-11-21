@@ -1,0 +1,12 @@
+{
+  "name": "taller-supletorio-arquitectura-luisfernando",
+  "version": "1.0.0",
+  "description": "Taller supletorio IS066 - Caso C: Inscripcion a cursos (Strategy + Observer + Hexagonal)",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  }
+}

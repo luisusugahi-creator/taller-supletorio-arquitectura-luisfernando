@@ -22,3 +22,39 @@ Antes de tocar nada ejecuté el código de `original/inscripciones.js` para ver 
 
 **Principios SOLID distintos que aparecen:** SRP (fila 1), OCP (fila 2) y DIP (fila 3). Además DRY (fila 4), KISS (filas 5 y 8), acoplamiento (fila 6) y cohesión (fila 7).
 
+
+## Parte 2 · Patrones de diseño
+
+Apliqué dos patrones de los que explica [refactoring.guru](https://refactoring.guru/es/design-patterns): **Strategy** para el valor de la inscripción y **Observer** para los avisos.
+
+### Patrón 1 · Strategy (valor según modalidad y beca)
+
+**Problema que resuelve.** En el original (líneas 22 a 25) el valor se calculaba con una cadena de `if` sobre la modalidad y otro `if` por la beca. Cada modalidad nueva obligaba a abrir ese bloque y tocarlo, y una modalidad desconocida (`"nocturna"`) terminaba cobrando $0 sin avisar.
+
+**Cómo lo refactoricé.** Cada regla de precio quedó en su propia clase y una calculadora las usa sin saber cuál es cuál.
+
+| Rol en refactoring.guru | Clase en mi código |
+|---|---|
+| Strategy (interfaz) | `src/domain/precio/EstrategiaDeModalidad.js` y `src/domain/precio/EstrategiaDeBeca.js` |
+| Concrete Strategy | `ModalidadPresencial`, `ModalidadVirtual`, `SinBeca`, `BecaPaga30` (todas en `src/domain/precio/`) |
+| Context | `CalculadoraDeValor` (`src/domain/precio/CalculadoraDeValor.js`) |
+| Client | el caso de uso que arma y usa la calculadora (`src/application/casos-de-uso/InscribirEstudiante.js`, Parte 3) y `src/composition.js`, que decide qué estrategias se registran |
+
+**Principio SOLID: Abierto/Cerrado (OCP).** Se agrega una modalidad creando una clase nueva y registrándola; la `CalculadoraDeValor` y las demás estrategias no se modifican.
+
+### Patrón 2 · Observer (avisos al estudiante y a coordinación)
+
+**Problema que resuelve.** En el original (líneas 27 a 29) la misma función que inscribe también armaba y enviaba los correos. Agregar un aviso nuevo (por ejemplo, auditoría) significaba editar la lógica de inscribir, y si un envío fallaba se podía dañar la inscripción.
+
+**Cómo lo refactoricé.** El caso de uso solo publica un evento (`INSCRIPCION_CREADA` o `INSCRIPCION_RETIRADA`). Quien quiera enterarse se suscribe. Si un suscriptor falla, se registra el error y los demás siguen recibiendo el aviso.
+
+| Rol en refactoring.guru | Clase en mi código |
+|---|---|
+| Publisher | `PublicadorDeEventos` (`src/application/eventos/PublicadorDeEventos.js`) |
+| Subscriber (interfaz) | `Suscriptor` (`src/application/eventos/Suscriptor.js`) |
+| Concrete Subscribers | `NotificadorAlEstudiante` y `NotificadorACoordinacion` (`src/application/notificadores/`) |
+| Client | `src/composition.js`, que crea el publicador y suscribe a los notificadores; el caso de uso solo llama a `publicar` |
+
+**Principio SOLID: Abierto/Cerrado y Responsabilidad Única.** Inscribir ya no sabe a quién se le avisa, y cada notificador hace una sola cosa. El envío real (correo, SMS) queda detrás del puerto `Mensajeria` (`src/application/puertos/Mensajeria.js`), que es Inversión de Dependencias.
+
+**Pruebas:** `tests/precio.test.js` y `tests/eventos.test.js` (`npm test`).
