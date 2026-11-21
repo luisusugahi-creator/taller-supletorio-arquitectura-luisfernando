@@ -94,6 +94,23 @@ Apliqué dos patrones de los que explica [refactoring.guru](https://refactoring.
 
 **Pruebas:** `tests/precio.test.js` y `tests/eventos.test.js` (`npm test`).
 
+### Extensión sin modificar clases existentes
+
+Para probar que el diseño está abierto a extensión agregué dos cosas nuevas:
+
+1. **Una modalidad nueva, `hibrida` ($175.000)**, como una Concrete Strategy más.
+2. **Un `RegistroDeAuditoria`**, un suscriptor nuevo que deja constancia de cada inscripción creada o retirada.
+
+| | Archivos |
+|---|---|
+| **Creados** | `src/domain/precio/ModalidadHibrida.js`, `src/application/notificadores/RegistroDeAuditoria.js`, `tests/extension.test.js` |
+| **Modificado (solo cableado)** | `src/composition.js`: registrar la modalidad nueva y suscribir la auditoría |
+| **NO tocados** | `CalculadoraDeValor`, `ModalidadPresencial`, `ModalidadVirtual`, `BecaPaga30`, `SinBeca`, `PublicadorDeEventos`, `Suscriptor`, los dos notificadores existentes, los casos de uso, `servidor.js`, el dominio |
+
+`composition.js` es la raíz de composición: su trabajo es justamente decidir qué piezas se conectan, así que no cuenta como clase de negocio modificada. Principio: **Abierto/Cerrado (OCP)**.
+
+Una limitación que dejo dicha: la lista desplegable de `public/index.html` tiene las modalidades escritas a mano, así que la página no muestra `hibrida` todavía; la API sí la acepta (`"modalidad":"hibrida"`). Se resolvería exponiendo `modalidadesDisponibles()` por un endpoint, pero eso ya sería otro cambio.
+
 ## Parte 3 · Arquitectura
 
 Elegí **arquitectura hexagonal (puertos y adaptadores)**.

@@ -1,11 +1,13 @@
 import { CalculadoraDeValor } from './domain/precio/CalculadoraDeValor.js';
 import { ModalidadPresencial } from './domain/precio/ModalidadPresencial.js';
 import { ModalidadVirtual } from './domain/precio/ModalidadVirtual.js';
+import { ModalidadHibrida } from './domain/precio/ModalidadHibrida.js';
 import { BecaPaga30 } from './domain/precio/BecaPaga30.js';
 import { SinBeca } from './domain/precio/SinBeca.js';
 import { PublicadorDeEventos } from './application/eventos/PublicadorDeEventos.js';
 import { NotificadorAlEstudiante } from './application/notificadores/NotificadorAlEstudiante.js';
 import { NotificadorACoordinacion } from './application/notificadores/NotificadorACoordinacion.js';
+import { RegistroDeAuditoria } from './application/notificadores/RegistroDeAuditoria.js';
 import { InscribirEstudiante } from './application/casos-de-uso/InscribirEstudiante.js';
 import { ConsultarInscripcion } from './application/casos-de-uso/ConsultarInscripcion.js';
 import { RetirarInscripcion } from './application/casos-de-uso/RetirarInscripcion.js';
@@ -24,15 +26,17 @@ export function crearAplicacion({
   cursos = new CursosEnMemoria(),
   inscripciones = new InscripcionesEnMemoria(),
   alFallar = (error) => console.error('Fallo un aviso:', error.message),
+  registrarAuditoria = (linea) => console.log(linea),
 } = {}) {
   const calculadora = new CalculadoraDeValor({
-    modalidades: [new ModalidadPresencial(), new ModalidadVirtual()],
+    modalidades: [new ModalidadPresencial(), new ModalidadVirtual(), new ModalidadHibrida()],
     becas: [new BecaPaga30(), new SinBeca()],
   });
 
   const publicador = new PublicadorDeEventos({ alFallar });
   publicador.suscribir(new NotificadorAlEstudiante(mensajeria));
   publicador.suscribir(new NotificadorACoordinacion(mensajeria));
+  publicador.suscribir(new RegistroDeAuditoria(registrarAuditoria));
 
   return {
     casosDeUso: {
