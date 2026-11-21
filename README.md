@@ -198,3 +198,11 @@ Descarté **MVC** porque, tal como lo usé en el curso, el controlador termina r
 - **Se modifica:** solo `src/composition.js` (cambiar `new InscripcionesEnMemoria()` por el adaptador nuevo).
 - **No cambia nada de:** `src/domain/`, `src/application/` ni `src/adapters/in/`. Los casos de uso no se enteran.
 - Una nota honesta: con base de datos real, la regla de cupo debería protegerse con una transacción, porque con varias peticiones a la vez el conteo y el guardado podrían cruzarse. En memoria, con un solo proceso, no es un problema práctico.
+
+## Sustentación
+
+Video (5 a 10 minutos): **PENDIENTE_ENLACE_VIDEO**
+
+## Uso de herramientas
+
+Declaré el uso de IA en [INFORME_IA.md](INFORME_IA.md). También está en el código: `informeUsoIA()` en `src/domain/informeUsoIA.js` (código `ARQ-AMB-C`), disponible en `GET /informe-ia`.
