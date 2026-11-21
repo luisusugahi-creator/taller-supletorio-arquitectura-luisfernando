@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inscripcion a cursos</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;color:#222}
+  fieldset{margin-bottom:1rem;border:1px solid #ccc;border-radius:6px}
+  label{display:block;margin:.4rem 0}
+  input,select,button{font:inherit;padding:.3rem .5rem}
+  #resultado{padding:.6rem;border-radius:6px;margin:1rem 0;display:none}
+  .ok{background:#e6f4ea;border:1px solid #2e7d32}.error{background:#fdecea;border:1px solid #c62828}
+  table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:.3rem .5rem;text-align:left}
+</style>
+</head>
+<body>
+<h1>Inscripcion a cursos</h1>
+<div id="resultado" role="status"></div>
+
+<form id="formInscribir">
+  <fieldset><legend>Inscribirme</legend>
+    <label>Nombre <input id="nombre" required minlength="3"></label>
+    <label>Correo <input id="correo" type="email"></label>
+    <label>Cursos aprobados (codigos separados por coma) <input id="aprobados" placeholder="ARQ1"></label>
+    <label><input id="becado" type="checkbox"> Tengo beca</label>
+    <label>Curso <select id="curso"></select></label>
+    <label>Modalidad <select id="modalidad"><option>presencial</option><option>virtual</option></select></label>
+    <button>Inscribir</button>
+  </fieldset>
+</form>
+
+<fieldset><legend>Mis inscripciones</legend>
+  <button id="actualizar" type="button">Actualizar lista</button>
+  <table><thead><tr><th>Id</th><th>Estudiante</th><th>Curso</th><th>Valor</th><th>Estado</th><th></th></tr></thead>
+  <tbody id="lista"></tbody></table>
+</fieldset>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function mostrar(texto, esError) {
+  const r = $('resultado');
+  r.textContent = texto;            // textContent: nunca interpreta HTML (evita XSS)
+  r.className = esError ? 'error' : 'ok';
+  r.style.display = 'block';
+}
+
+async function api(ruta, opciones) {
+  const resp = await fetch(ruta, opciones);
+  const datos = await resp.json();
+  if (!resp.ok) throw new Error(datos.mensaje || 'Error');
+  return datos;
+}
+
+async function cargarCursos() {
+  const cursos = await api('/cursos');
+  $('curso').replaceChildren(...cursos.map((c) => {
+    const o = document.createElement('option');
+    o.value = c.codigo;
+    o.textContent = `${c.codigo} - ${c.nombre}`;
+    return o;
+  }));
+}
+
+async function cargarLista() {
+  const filas = await api('/inscripciones');
+  $('lista').replaceChildren(...filas.map((i) => {
+    const tr = document.createElement('tr');
+    for (const v of [i.id, i.estudiante, i.curso, '$' + i.valor, i.estado]) {
+      const td = document.createElement('td');
+      td.textContent = v;
+      tr.append(td);
+    }
+    const td = document.createElement('td');
+    if (i.estado === 'activa') {
+      const b = document.createElement('button');
+      b.textContent = 'Retirar';
+      b.addEventListener('click', () => retirar(i.id));
+      td.append(b);
+    }
+    tr.append(td);
+    return tr;
+  }));
+}
+
+async function retirar(id) {
+  try {
+    await api(`/inscripciones/${id}/retirar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    mostrar('Retiro OK', false);
+    await cargarLista();
+  } catch (e) { mostrar(e.message, true); }
+}
+
+$('formInscribir').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  try {
+    const i = await api('/inscripciones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estudiante: {
+          nombre: $('nombre').value,
+          correo: $('correo').value,
+          aprobados: $('aprobados').value.split(',').map((s) => s.trim()).filter(Boolean),
+          becado: $('becado').checked,
+        },
+        codigoCurso: $('curso').value,
+        modalidad: $('modalidad').value,
+      }),
+    });
+    mostrar(`Inscrito en ${i.curso} por $${i.valor}`, false);
+    await cargarLista();
+  } catch (e) { mostrar(e.message, true); }
+});
+
+$('actualizar').addEventListener('click', () => cargarLista().catch((e) => mostrar(e.message, true)));
+cargarCursos().then(cargarLista).catch((e) => mostrar(e.message, true));
+</script>
+</body>
+</html>

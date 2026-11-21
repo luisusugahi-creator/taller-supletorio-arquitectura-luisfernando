@@ -5,6 +5,41 @@ Caso: **C · Inscripción a cursos** (entidad principal: Inscripción)
 
 Partí del código espagueti de `original/inscripciones.js` y lo reorganicé con **Strategy** y **Observer** (patrones de diseño) dentro de una arquitectura **Hexagonal** (puertos y adaptadores).
 
+
+## Cómo ejecutar
+
+Necesito **Node.js 20 o superior** (probado con Node 22). No hay dependencias, así que no hace falta `npm install`.
+
+```bash
+git clone <URL-del-repositorio>
+cd taller-supletorio-arquitectura-luisfernando
+npm test        # corre las pruebas (node:test)
+npm start       # levanta el servidor en http://localhost:3000
+```
+
+- Abrir `http://localhost:3000` muestra una página para inscribirse, ver la lista y retirarse.
+- Para otro puerto: `PORT=4000 npm start` (en Windows PowerShell: `$env:PORT=4000; npm start`).
+- El código original con los problemas está en `original/inscripciones.js` (no se ejecuta; es solo la línea base para la Parte 1).
+
+### API
+
+| Operación | Ruta | Respuesta |
+|---|---|---|
+| Crear inscripción | `POST /inscripciones` con `{"estudiante":{"nombre","correo","aprobados":[],"becado":false},"codigoCurso":"ARQ1","modalidad":"presencial"}` | 201 |
+| Consultar | `GET /inscripciones/:id` | 200 / 404 |
+| Retirar | `POST /inscripciones/:id/retirar` | 200 / 404 / 409 |
+| Listar | `GET /inscripciones?estudiante=&curso=&estado=` | 200 |
+| Cursos | `GET /cursos` | 200 |
+| Informe de IA | `GET /informe-ia` | 200 (`informeUsoIA()`, código `ARQ-AMB-C`) |
+
+Ejemplo:
+
+```bash
+curl -X POST localhost:3000/inscripciones -H "Content-Type: application/json" \
+  -d '{"estudiante":{"nombre":"Ana Perez","correo":"ana@correo.co","becado":true},"codigoCurso":"ARQ1","modalidad":"virtual"}'
+```
+
+Errores: `400` dato inválido, `404` no existe, `409` rompe una regla (por ejemplo `SIN_CUPO`). Todos responden `{"codigo","mensaje"}`.
 ## Parte 1 · Principios
 
 Antes de tocar nada ejecuté el código de `original/inscripciones.js` para ver qué pasa de verdad (no solo leerlo). Los números de línea de la tabla son los de ese archivo.
@@ -58,3 +93,91 @@ Apliqué dos patrones de los que explica [refactoring.guru](https://refactoring.
 **Principio SOLID: Abierto/Cerrado y Responsabilidad Única.** Inscribir ya no sabe a quién se le avisa, y cada notificador hace una sola cosa. El envío real (correo, SMS) queda detrás del puerto `Mensajeria` (`src/application/puertos/Mensajeria.js`), que es Inversión de Dependencias.
 
 **Pruebas:** `tests/precio.test.js` y `tests/eventos.test.js` (`npm test`).
+
+## Parte 3 · Arquitectura
+
+Elegí **arquitectura hexagonal (puertos y adaptadores)**.
+
+### Diagrama
+
+```mermaid
+flowchart LR
+  subgraph Entrada["Adaptadores de entrada"]
+    HTTP["servidor.js (HTTP)"]
+    UI["public/index.html"]
+  end
+  subgraph App["Aplicacion"]
+    CU["Casos de uso: Inscribir, Consultar, Retirar, Listar"]
+    PUB["PublicadorDeEventos (Observer)"]
+    P1(["Puerto RepositorioDeInscripciones"])
+    P2(["Puerto RepositorioDeCursos"])
+    P3(["Puerto Mensajeria"])
+  end
+  subgraph Dominio["Dominio"]
+    ENT["Estudiante, Curso, Inscripcion"]
+    REG["ReglasDeInscripcion"]
+    PRE["CalculadoraDeValor (Strategy)"]
+  end
+  subgraph Salida["Adaptadores de salida"]
+    A1["InscripcionesEnMemoria"]
+    A2["CursosEnMemoria"]
+    A3["MensajeriaEnConsola"]
+  end
+  UI --> HTTP --> CU
+  CU --> ENT
+  CU --> REG
+  CU --> PRE
+  CU --> PUB --> P3
+  CU --> P1
+  CU --> P2
+  A1 -.implementa.-> P1
+  A2 -.implementa.-> P2
+  A3 -.implementa.-> P3
+  COMP["composition.js"] -. conecta .-> CU
+```
+
+Las flechas de dependencia van hacia adentro: el dominio no conoce a nadie, la aplicación solo conoce el dominio y los puertos, y los adaptadores conocen a la aplicación. `src/composition.js` es el único sitio que une las piezas concretas.
+
+### Estructura de carpetas
+
+```
+original/                      codigo espagueti (Parte 1)
+src/
+  domain/                      reglas del negocio, sin dependencias externas
+    Estudiante.js  Curso.js  Inscripcion.js
+    ReglasDeInscripcion.js  errores.js  informeUsoIA.js
+    precio/                    Strategy (Parte 2)
+  application/
+    casos-de-uso/              Inscribir, Consultar, Retirar, Listar, ListarCursos
+    puertos/                   RepositorioDeInscripciones, RepositorioDeCursos, Mensajeria
+    eventos/ notificadores/    Observer (Parte 2)
+  adapters/
+    in/http/servidor.js        HTTP -> casos de uso
+    out/                       InscripcionesEnMemoria, CursosEnMemoria, MensajeriaEnConsola
+  composition.js               raiz de composicion
+  index.js                     arranque
+public/index.html              pagina minima
+tests/                         pruebas con node:test
+```
+
+### Operaciones y regla de negocio
+
+Las cuatro operaciones pedidas son: **crear** (`POST /inscripciones`), **consultar** (`GET /inscripciones/:id`), **retirar** (`POST /inscripciones/:id/retirar`) y **listar** (`GET /inscripciones`).
+
+La regla principal es **no inscribir si no hay cupo**: `ReglasDeInscripcion.exigirCupo` lanza `SIN_CUPO` y el servidor responde `409` con un mensaje claro. También se validan duplicado (`YA_INSCRITO`), prerrequisito (`FALTA_PRERREQUISITO`), modalidad y datos de entrada. Esta lógica está solo en el dominio y los casos de uso; ni el servidor ni el repositorio deciden nada del negocio.
+
+### Por qué hexagonal y por qué no MVC
+
+Para este caso pesé dos atributos de calidad:
+
+- **Testeabilidad.** Las reglas (cupo, prerrequisito, valor) y los casos de uso se prueban sin levantar un servidor ni una base de datos, porque las dependencias entran por puertos y en las pruebas pongo una mensajería falsa. Por eso `tests/inscripcion.test.js` corre en milisegundos.
+- **Portabilidad / mantenibilidad.** Cambiar cómo se guardan los datos o cómo se envían los avisos solo toca un adaptador, no las reglas.
+
+Descarté **MVC** porque, tal como lo usé en el curso, el controlador termina recibiendo la lógica (y eso me costaba justamente el descuento de "lógica de negocio en el controlador"), y el modelo queda pegado al framework y a la base de datos. En hexagonal la separación entre negocio y detalles técnicos viene obligada por los puertos. Descarté también una arquitectura en capas simple porque no impide que la capa de negocio importe directamente el acceso a datos.
+
+### ¿Qué archivos cambian si paso de memoria a base de datos?
+
+- **Se agrega:** un adaptador nuevo, por ejemplo `src/adapters/out/InscripcionesEnPostgres.js` (y `CursosEnPostgres.js`), que implementa los mismos puertos `RepositorioDeInscripciones` y `RepositorioDeCursos`.
+- **Se modifica:** solo `src/composition.js` (cambiar `new InscripcionesEnMemoria()` por el adaptador nuevo).
+- **No cambia nada de:** `src/domain/`, `src/application/` ni `src/adapters/in/`. Los casos de uso no se enteran.
+- Una nota honesta: con base de datos real, la regla de cupo debería protegerse con una transacción, porque con varias peticiones a la vez el conteo y el guardado podrían cruzarse. En memoria, con un solo proceso, no es un problema práctico.
